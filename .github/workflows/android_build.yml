@@ -33,12 +33,16 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
+      - name: Pre-clean Wrapper
+        run: |
+          rm -f android/gradle/wrapper/gradle-wrapper.jar
+          rm -f android/gradle/wrapper/gradle-wrapper.properties
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.10.2
           cache-disabled: true
-          wrapper-validation-enabled: false
 
       - name: Check environment
         run: |
