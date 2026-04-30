@@ -1,43 +1,75 @@
-name: Android CI Build
+name: Build Android APK & AAB
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main, master ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Build web app
+        run: |
+          npm run build
+          mkdir -p dist
+
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: 'zulu'
+          java-version: '21'
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}
+          gradle-version: 8.10.2
+          cache-disabled: true
+          add-disable-wrapper-validation: true
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Fix Gradle Wrapper & Sync
+        run: |
+          cd android
+          # Force regenerate the wrapper to ensure it matches the requested version and has correct checksums
+          gradle wrapper --gradle-version 8.10.2 --distribution-type all
+          chmod +x gradlew
+          cd ..
+          npx cap sync android
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      - name: Build Android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+        run: |
+          cd android
+          # Ensure gradlew is executable
+          chmod +x gradlew
+          ./gradlew clean --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew bundleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-aab
+          path: android/app/build/outputs/bundle/debug/app-debug.aab
