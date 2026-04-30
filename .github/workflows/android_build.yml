@@ -29,7 +29,9 @@ jobs:
         run: npm ci || npm install
 
       - name: Build web app
-        run: npm run build
+        run: |
+          npm run build
+          mkdir -p dist
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -47,10 +49,11 @@ jobs:
       - name: Fix Gradle Wrapper
         run: |
           cd android
-          rm -rf gradle/wrapper/gradle-wrapper.jar
-          rm -rf gradle/wrapper/gradle-wrapper.properties
-          gradle wrapper --gradle-version 8.12
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          rm -f gradle/wrapper/gradle-wrapper.properties
+          gradle wrapper --gradle-version 8.10.2 --distribution-type all
           chmod +x gradlew
+          npx cap sync android
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
