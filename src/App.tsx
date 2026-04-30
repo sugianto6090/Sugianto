@@ -1,240 +1,170 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Pause, 
-  Play, 
+  Trophy, 
+  Lightbulb, 
+  Eraser, 
   RotateCcw, 
-  ArrowLeft, 
-  ArrowRight, 
-  ArrowDown, 
-  RotateCw,
-  Gamepad2,
-  Trash2
+  HelpCircle,
+  Play,
+  CheckCircle2,
+  AlertCircle,
+  Home
 } from 'lucide-react';
-import { COLS, ROWS, TETROMINOS, randomTetromino, INITIAL_DROP_SPEED, MIN_DROP_SPEED, SPEED_INCREMENT, Tetromino } from './constants';
+import { animals, Animal } from './data/animals';
 
-const createEmptyGrid = () => Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+// Constants for game logic
+const SCORE_CORRECT = 50;
+const COST_HINT_LETTER = 10;
+const COST_HINT_REMOVE = 20;
+const LETTER_BANK_SIZE = 12;
 
 export default function App() {
-  const [grid, setGrid] = useState<(string | number)[][]>(createEmptyGrid());
-  const [activePiece, setActivePiece] = useState<{ pos: { x: number; y: number }; tetromino: Tetromino } | null>(null);
-  const [nextPiece, setNextPiece] = useState<Tetromino>(randomTetromino());
-  const [score, setScore] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [lines, setLines] = useState(0);
-  const [gameOver, setGameOver] = useState(false);
-  const [paused, setPaused] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
+  const [currentAnimal, setCurrentAnimal] = useState<Animal | null>(null);
+  const [guessedLetters, setGuessedLetters] = useState<string[]>([]);
+  const [letterBank, setLetterBank] = useState<string[]>([]);
+  const [score, setScore] = useState(0);
+  const [showResult, setShowResult] = useState<'correct' | 'wrong' | null>(null);
+  const [revealedIndices, setRevealedIndices] = useState<number[]>([]);
+  const [removedIndices, setRemovedIndices] = useState<number[]>([]);
 
-  const calculateSpeed = (currLevel: number) => {
-    return Math.max(MIN_DROP_SPEED, INITIAL_DROP_SPEED - (currLevel - 1) * SPEED_INCREMENT);
-  };
+  // Initialize a new round
+  const startNewRound = useCallback(() => {
+    const randomAnimal = animals[Math.floor(Math.random() * animals.length)];
+    setCurrentAnimal(randomAnimal);
+    setGuessedLetters(new Array(randomAnimal.name.replace(/\s/g, '').length).fill(''));
+    setRevealedIndices([]);
+    setRemovedIndices([]);
+    setShowResult(null);
 
-  const checkCollision = (piece: { pos: { x: number; y: number }; tetromino: Tetromino }, moveX = 0, moveY = 0, rotatedShape?: (string | number)[][]) => {
-    const shape = rotatedShape || piece.tetromino.shape;
-    for (let y = 0; y < shape.length; y++) {
-      for (let x = 0; x < shape[y].length; x++) {
-        if (shape[y][x] !== 0) {
-          const newX = piece.pos.x + x + moveX;
-          const newY = piece.pos.y + y + moveY;
-          if (
-            newX < 0 || 
-            newX >= COLS || 
-            newY >= ROWS ||
-            (newY >= 0 && grid[newY][newX] !== 0)
-          ) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
-
-  const spawnPiece = useCallback(() => {
-    const freshPiece = nextPiece;
-    const newNext = randomTetromino();
-    setNextPiece(newNext);
-
-    const pos = { x: Math.floor(COLS / 2) - 1, y: 0 };
-    const newActive = { pos, tetromino: freshPiece };
-
-    if (checkCollision(newActive)) {
-      setGameOver(true);
-      setPaused(true);
-      return;
-    }
-
-    setActivePiece(newActive);
-  }, [nextPiece, grid]);
-
-  const drop = useCallback(() => {
-    if (!activePiece || paused || gameOver) return;
-
-    if (!checkCollision(activePiece, 0, 1)) {
-      setActivePiece(prev => prev ? { ...prev, pos: { ...prev.pos, y: prev.pos.y + 1 } } : null);
-    } else {
-      // Lock piece
-      const newGrid = [...grid.map(row => [...row])];
-      activePiece.tetromino.shape.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            const gridY = activePiece.pos.y + y;
-            const gridX = activePiece.pos.x + x;
-            if (gridY >= 0) newGrid[gridY][gridX] = activePiece.tetromino.id;
-          }
-        });
-      });
-
-      // Clear lines
-      let linesCleared = 0;
-      const filteredGrid = newGrid.filter(row => {
-        if (row.every(cell => cell !== 0)) {
-          linesCleared++;
-          return false;
-        }
-        return true;
-      });
-
-      while (filteredGrid.length < ROWS) {
-        filteredGrid.unshift(new Array(COLS).fill(0));
-      }
-
-      setGrid(filteredGrid);
-      if (linesCleared > 0) {
-        const linePoints = [0, 100, 300, 500, 800];
-        setScore(prev => prev + linePoints[linesCleared] * level);
-        setLines(prev => {
-          const newTotal = prev + linesCleared;
-          if (Math.floor(newTotal / 10) >= level) {
-            if (level < 50) setLevel(l => l + 1);
-          }
-          return newTotal;
-        });
-      }
-      spawnPiece();
-    }
-  }, [activePiece, grid, level, paused, gameOver, spawnPiece]);
-
-  const move = (dir: number) => {
-    if (!activePiece || paused || gameOver) return;
-    if (!checkCollision(activePiece, dir, 0)) {
-      setActivePiece(prev => prev ? { ...prev, pos: { ...prev.pos, x: prev.pos.x + dir } } : null);
-    }
-  };
-
-  const rotate = () => {
-    if (!activePiece || paused || gameOver) return;
-    const shape = activePiece.tetromino.shape;
-    const rotated = shape[0].map((_, index) => shape.map(col => col[index])).map(row => row.reverse());
+    // Create letter bank (correct letters + random distractor letters)
+    const nameUpper = randomAnimal.name.toUpperCase().replace(/\s/g, '');
+    const chars = [...new Set(nameUpper.split(''))];
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     
-    // Wall kick attempt
-    if (!checkCollision(activePiece, 0, 0, rotated)) {
-      setActivePiece(prev => prev ? { ...prev, tetromino: { ...prev.tetromino, shape: rotated } } : null);
-    } else if (!checkCollision(activePiece, -1, 0, rotated)) {
-      setActivePiece(prev => prev ? { pos: { ...prev.pos, x: prev.pos.x - 1 }, tetromino: { ...prev.tetromino, shape: rotated } } : null);
-    } else if (!checkCollision(activePiece, 1, 0, rotated)) {
-      setActivePiece(prev => prev ? { pos: { ...prev.pos, x: prev.pos.x + 1 }, tetromino: { ...prev.tetromino, shape: rotated } } : null);
+    // Fill up to LETTER_BANK_SIZE with distractors
+    while (chars.length < LETTER_BANK_SIZE) {
+      const randomChar = alphabet[Math.floor(Math.random() * alphabet.length)];
+      if (!chars.includes(randomChar)) {
+        chars.push(randomChar);
+      }
     }
-  };
 
-  const hardDrop = () => {
-    if (!activePiece || paused || gameOver) return;
-    let yOffset = 0;
-    while (!checkCollision(activePiece, 0, yOffset + 1)) {
-      yOffset++;
-    }
-    setActivePiece(prev => prev ? { ...prev, pos: { ...prev.pos, y: prev.pos.y + yOffset } } : null);
+    // Shuffle letter bank
+    setLetterBank(chars.sort(() => Math.random() - 0.5));
+  }, []);
+
+  const startGame = () => {
+    setScore(100); // Start with some points for hints
+    setGameStarted(true);
+    startNewRound();
   };
 
   const resetGame = () => {
-    setGrid(createEmptyGrid());
+    setGameStarted(false);
     setScore(0);
-    setLevel(1);
-    setLines(0);
-    setGameOver(false);
-    setPaused(false);
-    setGameStarted(true);
-    setActivePiece(null);
-    setNextPiece(randomTetromino());
   };
 
-  useEffect(() => {
-    if (gameStarted && !activePiece && !gameOver) {
-      spawnPiece();
+  // Handle letter click
+  const handleLetterSelect = (letter: string, bankIndex: number) => {
+    if (showResult || removedIndices.includes(bankIndex)) return;
+
+    const nextEmptyIndex = guessedLetters.findIndex((char, idx) => char === '' && !revealedIndices.includes(idx));
+    if (nextEmptyIndex === -1) return;
+
+    const newGuessed = [...guessedLetters];
+    newGuessed[nextEmptyIndex] = letter;
+    setGuessedLetters(newGuessed);
+
+    // Check if full
+    const isFull = newGuessed.every(char => char !== '');
+    if (isFull) {
+      const finalGuess = newGuessed.join('');
+      const actualName = currentAnimal?.name.toUpperCase().replace(/\s/g, '');
+      
+      if (finalGuess === actualName) {
+        setShowResult('correct');
+        setScore(prev => prev + SCORE_CORRECT);
+        setTimeout(() => {
+          startNewRound();
+        }, 2000);
+      } else {
+        setShowResult('wrong');
+        setTimeout(() => {
+          // Clear non-revealed guesses
+          setGuessedLetters(prev => prev.map((char, idx) => revealedIndices.includes(idx) ? char : ''));
+          setShowResult(null);
+        }, 1500);
+      }
     }
-  }, [gameStarted, activePiece, gameOver, spawnPiece]);
+  };
 
-  useEffect(() => {
-    if (paused || gameOver || !gameStarted) return;
-    const interval = setInterval(() => {
-      drop();
-    }, calculateSpeed(level));
-    return () => clearInterval(interval);
-  }, [drop, level, paused, gameOver, gameStarted]);
+  // Hint 1: Show one letter
+  const useHintShowLetter = () => {
+    if (!currentAnimal || score < COST_HINT_LETTER || showResult) return;
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!gameStarted || paused || gameOver) return;
-      if (e.key === 'ArrowLeft') move(-1);
-      if (e.key === 'ArrowRight') move(1);
-      if (e.key === 'ArrowDown') drop();
-      if (e.key === 'ArrowUp') rotate();
-      if (e.key === ' ') hardDrop();
-      if (e.key === 'p') setPaused(!paused);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activePiece, paused, gameOver, gameStarted, drop]);
-
-  const renderCell = (cellValue: string | number, x: number, y: number) => {
-    let color = 'bg-white/50 border-white/20';
-    let icon = null;
-
-    if (cellValue !== 0) {
-      const type = cellValue as string;
-      color = TETROMINOS[type].color;
-      icon = TETROMINOS[type].icon;
-    }
-
-    if (activePiece) {
-      const { x: px, y: py } = activePiece.pos;
-      const shape = activePiece.tetromino.shape;
-      if (y >= py && y < py + shape.length && x >= px && x < px + shape[0].length) {
-        const shapeVal = shape[y - py][x - px];
-        if (shapeVal !== 0) {
-          color = activePiece.tetromino.color;
-          icon = activePiece.tetromino.icon;
-        }
+    const actualName = currentAnimal.name.toUpperCase().replace(/\s/g, '');
+    const hiddenIndices = [];
+    for (let i = 0; i < actualName.length; i++) {
+      if (!revealedIndices.includes(i)) {
+        hiddenIndices.push(i);
       }
     }
 
-    return (
-      <div 
-        key={`${x}-${y}`} 
-        className={`w-full aspect-square border ${color} rounded-sm flex items-center justify-center text-[10px] md:text-sm shadow-sm transition-colors duration-200`}
-      >
-        {icon}
-      </div>
-    );
+    if (hiddenIndices.length === 0) return;
+
+    const randomIndex = hiddenIndices[Math.floor(Math.random() * hiddenIndices.length)];
+    const correctLetter = actualName[randomIndex];
+
+    setRevealedIndices(prev => [...prev, randomIndex]);
+    setGuessedLetters(prev => {
+      const next = [...prev];
+      next[randomIndex] = correctLetter;
+      return next;
+    });
+    setScore(prev => prev - COST_HINT_LETTER);
+  };
+
+  // Hint 2: Remove wrong letters
+  const useHintRemoveLetters = () => {
+    if (!currentAnimal || score < COST_HINT_REMOVE || showResult) return;
+
+    const actualName = currentAnimal.name.toUpperCase().replace(/\s/g, '');
+    const wrongIndices: number[] = [];
+
+    letterBank.forEach((char, idx) => {
+      if (!actualName.includes(char) && !removedIndices.includes(idx)) {
+        wrongIndices.push(idx);
+      }
+    });
+
+    if (wrongIndices.length === 0) return;
+
+    // Remove half of the wrong ones or at least 1
+    const toRemoveCount = Math.max(1, Math.floor(wrongIndices.length / 2));
+    const randomWrong = wrongIndices.sort(() => Math.random() - 0.5).slice(0, toRemoveCount);
+
+    setRemovedIndices(prev => [...prev, ...randomWrong]);
+    setScore(prev => prev - COST_HINT_REMOVE);
   };
 
   if (!gameStarted) {
     return (
-      <div className="min-h-screen bg-[#FFF7ED] flex flex-col items-center justify-center p-6 text-[#1E293B] font-sans">
+      <div className="min-h-screen bg-[#FFF7ED] flex flex-col items-center justify-center p-6 font-sans">
         <motion.div 
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           className="bg-white p-10 rounded-[40px] shadow-2xl border-8 border-orange-100 flex flex-col items-center max-w-sm w-full text-center"
         >
           <div className="mb-6 bg-orange-100 p-6 rounded-full">
-            <Gamepad2 className="w-20 h-20 text-orange-500" />
+            <Trophy className="w-20 h-20 text-orange-500" />
           </div>
-          <h1 className="text-4xl font-black text-orange-600 mb-2 uppercase tracking-tighter leading-none">Tetris<br/>Anak Cerdas</h1>
-          <p className="text-gray-500 font-medium mb-8">Game seru bertema hewan lucu untuk melatih otak!</p>
+          <h1 className="text-4xl font-black text-orange-600 mb-2 uppercase tracking-tighter leading-none">Tebak Hewan<br/>Anak Cerdas</h1>
+          <p className="text-gray-500 font-medium mb-8">Uji pengetahuanmu tentang dunia hewan yang seru!</p>
           
           <button 
-            onClick={resetGame}
+            onClick={startGame}
             className="w-full bg-orange-500 text-white text-2xl font-black py-5 rounded-3xl shadow-[0_10px_0px_#C2410C] active:translate-y-2 active:shadow-none transition-all flex items-center justify-center gap-3"
           >
             <Play className="fill-current w-8 h-8" />
@@ -247,110 +177,169 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#FFF7ED] flex flex-col items-center p-4 md:p-8 select-none font-sans text-[#1E293B]">
-      {/* Header Info */}
-      <div className="w-full max-w-lg mb-4 flex justify-between items-center bg-white p-4 rounded-3xl shadow-lg border-4 border-orange-100">
-        <div className="flex flex-col items-center">
-          <span className="text-xs font-black text-gray-400 uppercase">Skor</span>
-          <span className="text-2xl font-black text-orange-600">{score.toLocaleString()}</span>
-        </div>
-        <div className="flex flex-col items-center px-6 border-x-2 border-orange-50">
-          <span className="text-xs font-black text-gray-400 uppercase">Level</span>
-          <span className="text-2xl font-black text-orange-600">{level}</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-xs font-black text-gray-400 uppercase">Next</span>
-          <div className="w-10 h-10 flex items-center justify-center bg-orange-50 rounded-xl mt-1">
-            <span className="text-2xl">{nextPiece.icon}</span>
+      {/* Header Stats */}
+      <div className="w-full max-w-lg mb-6 flex justify-between items-center bg-white p-4 rounded-3xl shadow-lg border-4 border-orange-100">
+        <div className="flex items-center gap-3">
+          <div className="bg-yellow-100 p-2 rounded-full shadow-inner">
+            <Trophy className="w-6 h-6 text-yellow-600" />
+          </div>
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black text-gray-400 uppercase leading-none">Skor Kamu</span>
+            <span className="text-xl font-black text-orange-600">{score}</span>
           </div>
         </div>
+        <button 
+          onClick={resetGame}
+          className="p-3 bg-gray-100 rounded-2xl text-gray-400 hover:text-red-500 transition-colors"
+        >
+          <Home className="w-6 h-6" />
+        </button>
       </div>
 
       <div className="w-full max-w-lg flex-1 flex flex-col items-center">
-        {/* Main Grid */}
-        <div className="w-full bg-white p-2 rounded-3xl shadow-xl border-8 border-orange-100 relative overflow-hidden mb-6">
-          <div className="grid grid-cols-10 gap-[1px] bg-orange-50 rounded-2xl overflow-hidden border-2 border-orange-100">
-            {grid.map((row, y) => row.map((value, x) => renderCell(value, x, y)))}
-          </div>
-
-          <AnimatePresence>
-            {(paused || gameOver) && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-20 backdrop-blur-md bg-white/60 flex flex-col items-center justify-center p-6 text-center"
-              >
-                {gameOver ? (
-                  <>
-                    <div className="bg-red-100 p-6 rounded-full mb-4">
-                      <Trash2 className="w-16 h-16 text-red-500" />
-                    </div>
-                    <h2 className="text-4xl font-black text-red-600 mb-2">GAME OVER!</h2>
-                    <p className="text-gray-600 font-bold text-lg mb-8">Game Selesai. Kamu Hebat!</p>
-                  </>
-                ) : (
-                  <>
-                    <h2 className="text-4xl font-black text-orange-600 mb-2">PAUSE</h2>
-                    <p className="text-gray-600 font-bold text-lg mb-8">Game Berhenti Sejenak</p>
-                  </>
+        {/* Animal Illustration Container */}
+        <div className="w-full bg-white p-4 rounded-[40px] shadow-xl border-8 border-orange-100 mb-6 flex flex-col items-center relative overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div 
+              key={currentAnimal?.id}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              className="flex flex-col items-center w-full"
+            >
+              <div className="w-full aspect-square max-w-[280px] bg-orange-50 rounded-[32px] flex items-center justify-center mb-4 overflow-hidden shadow-inner border-2 border-orange-100">
+                {currentAnimal && (
+                  <img 
+                    src={`https://loremflickr.com/400/400/${currentAnimal.slug}?lock=${currentAnimal.id}`}
+                    alt={currentAnimal.name}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
                 )}
-                
-                <div className="flex flex-col gap-4 w-full max-w-[200px]">
-                  {gameOver ? (
-                    <button 
-                      onClick={resetGame}
-                      className="bg-orange-500 text-white font-black py-4 rounded-2xl shadow-[0_6px_0px_#C2410C] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
-                    >
-                      <RotateCcw className="w-6 h-6" /> COBA LAGI
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => setPaused(false)}
-                      className="bg-orange-500 text-white font-black py-4 rounded-2xl shadow-[0_6px_0px_#C2410C] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
-                    >
-                      <Play className="fill-current w-6 h-6" /> LANJUT
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => setGameStarted(false)}
-                    className="bg-gray-100 text-gray-500 font-black py-4 rounded-2xl border-2 border-gray-200"
-                  >
-                    MENU UTAMA
-                  </button>
+              </div>
+              
+              <div className="bg-blue-50 p-4 rounded-2xl border-2 border-blue-100 w-full shadow-sm">
+                <div className="flex items-center gap-2 mb-1">
+                  <HelpCircle className="w-4 h-4 text-blue-500" />
+                  <span className="text-[10px] font-black text-blue-400 uppercase">Petunjuk Hewan</span>
                 </div>
+                <p className="text-sm font-bold text-blue-800 leading-tight">
+                  "{currentAnimal?.clue}"
+                </p>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Feedback Overlay */}
+          <AnimatePresence>
+            {showResult && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.2 }}
+                className={`absolute inset-0 flex flex-col items-center justify-center backdrop-blur-sm z-10 ${
+                  showResult === 'correct' ? 'bg-green-500/30' : 'bg-red-500/30'
+                }`}
+              >
+                <div className={`p-8 rounded-full shadow-2xl ${
+                  showResult === 'correct' ? 'bg-green-500' : 'bg-red-500'
+                }`}>
+                  {showResult === 'correct' ? (
+                    <CheckCircle2 className="w-20 h-20 text-white" />
+                  ) : (
+                    <AlertCircle className="w-20 h-20 text-white" />
+                  )}
+                </div>
+                <h2 className="text-5xl font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)] mt-4 uppercase italic">
+                  {showResult === 'correct' ? 'YEYY!' : 'UPS!'}
+                </h2>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Mobile Controls */}
-        <div className="w-full grid grid-cols-3 gap-2">
-          <div />
-          <button onClick={rotate} className="bg-orange-500 text-white h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            <RotateCw className="w-8 h-8" />
-          </button>
-          <div />
-          
-          <button onClick={() => move(-1)} className="bg-orange-400 text-white h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            <ArrowLeft className="w-8 h-8" />
-          </button>
-          <button onClick={drop} className="bg-orange-600 text-white h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            <ArrowDown className="w-8 h-8" />
-          </button>
-          <button onClick={() => move(1)} className="bg-orange-400 text-white h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            <ArrowRight className="w-8 h-8" />
+        {/* Guess Slots */}
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          {guessedLetters.map((char, idx) => (
+            <motion.div 
+              key={idx}
+              animate={revealedIndices.includes(idx) ? { scale: [1, 1.1, 1] } : {}}
+              className={`w-10 h-12 md:w-12 md:h-14 flex items-center justify-center text-2xl font-black rounded-xl shadow-md border-b-4 transition-all duration-300 ${
+                revealedIndices.includes(idx) 
+                  ? 'bg-yellow-400 text-white border-yellow-600' 
+                  : char !== '' 
+                    ? 'bg-white text-orange-600 border-orange-300' 
+                    : 'bg-orange-100/50 text-transparent border-orange-100'
+              }`}
+            >
+              {char}
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Letter Bank */}
+        <div className="w-full grid grid-cols-4 md:grid-cols-6 gap-2 mb-8 bg-white/50 p-4 rounded-3xl border-2 border-orange-50 shadow-inner">
+          {letterBank.map((letter, idx) => {
+            const isRemoved = removedIndices.includes(idx);
+            return (
+              <button
+                key={idx}
+                disabled={isRemoved || !!showResult}
+                onClick={() => handleLetterSelect(letter, idx)}
+                className={`h-14 rounded-2xl flex items-center justify-center text-xl font-black shadow-lg active:scale-95 transition-all ${
+                  isRemoved 
+                    ? 'bg-gray-100 text-gray-300 shadow-none scale-90 cursor-not-allowed' 
+                    : 'bg-white text-gray-700 hover:bg-orange-50 active:bg-orange-100 border-b-4 border-gray-100'
+                }`}
+              >
+                {letter}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Hint Options */}
+        <div className="w-full grid grid-cols-2 gap-4">
+          <button 
+            onClick={useHintShowLetter}
+            disabled={score < COST_HINT_LETTER || !!showResult}
+            className={`flex flex-col items-center justify-center py-4 rounded-[32px] border-4 transition-all shadow-xl active:translate-y-1 active:shadow-none ${
+              score >= COST_HINT_LETTER 
+                ? 'bg-blue-500 border-blue-600 text-white' 
+                : 'bg-gray-200 border-gray-300 text-gray-400'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Lightbulb className="w-5 h-5 fill-current" />
+              <span className="font-black text-sm uppercase">Satu Huruf</span>
+            </div>
+            <span className="text-xs font-bold bg-blue-700/30 px-3 py-1 rounded-full">-{COST_HINT_LETTER} Poin</span>
           </button>
 
-          <button onClick={() => setPaused(!paused)} className="bg-gray-200 text-gray-500 h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            {paused ? <Play className="fill-current" /> : <Pause className="fill-current" />}
-          </button>
-          <button onClick={hardDrop} className="col-span-1 bg-yellow-500 text-white h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform text-xs font-black uppercase">
-            DROP
-          </button>
-          <button onClick={resetGame} className="bg-orange-100 text-orange-600 h-16 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            <RotateCcw className="w-8 h-8" />
+          <button 
+            onClick={useHintRemoveLetters}
+            disabled={score < COST_HINT_REMOVE || !!showResult}
+            className={`flex flex-col items-center justify-center py-4 rounded-[32px] border-4 transition-all shadow-xl active:translate-y-1 active:shadow-none ${
+              score >= COST_HINT_REMOVE 
+                ? 'bg-purple-500 border-purple-600 text-white' 
+                : 'bg-gray-200 border-gray-300 text-gray-400'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Eraser className="w-5 h-5" />
+              <span className="font-black text-sm uppercase">Hapus Salah</span>
+            </div>
+            <span className="text-xs font-bold bg-purple-700/30 px-3 py-1 rounded-full">-{COST_HINT_REMOVE} Poin</span>
           </button>
         </div>
+
+        <button 
+          onClick={startNewRound}
+          className="mt-8 flex items-center gap-2 text-orange-500/60 font-bold hover:text-orange-500 transition-colors"
+        >
+          <RotateCcw className="w-5 h-5" />
+          <span className="text-sm">Ganti Hewan Lain</span>
+        </button>
       </div>
     </div>
   );

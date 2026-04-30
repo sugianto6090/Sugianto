@@ -1,6 +1,7 @@
 {
-  "name": "Tetris Anak Cerdas",
-  "description": "Game tetris edukatif dengan tema hewan lucu untuk melatih ketangkasan anak.",
+  "name": "Tebak Hewan Anak Cerdas",
+  "description": "Game edukasi seru menebak gambar hewan dengan berbagai pilihan bantuan untuk melatih kecerdasan anak.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }
+ 

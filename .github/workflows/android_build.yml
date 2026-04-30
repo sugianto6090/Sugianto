@@ -8,8 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -43,18 +41,12 @@ jobs:
         with:
           gradle-version: 8.10.2
           cache-disabled: true
-
-      - name: Check environment
-        run: |
-          node -v
-          npm -v
-          java -version
-          gradle -v
+          wrapper-validation-enabled: false
 
       - name: Fix Gradle Wrapper & Sync
         run: |
           cd android
-          # Use the gradle version we just set up to fix the wrapper
+          # Use local gradle to regenerate the wrapper
           gradle wrapper
           chmod +x gradlew
           ./gradlew --version
@@ -62,12 +54,13 @@ jobs:
           npx cap sync android
 
       - name: Build Android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
         run: |
           cd android
-          # Use ./gradlew clean to ensure a fresh build state
           ./gradlew clean
-          ./gradlew assembleDebug
-          ./gradlew bundleDebug
+          ./gradlew assembleDebug --stacktrace
+          ./gradlew bundleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
