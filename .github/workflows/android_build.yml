@@ -1,81 +1,37 @@
-name: Build Android APK & AAB
+name: Android Build
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: 'npm'
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
 
-      - name: Install dependencies
-        run: npm ci || npm install
+    - name: Build with Gradle
+      run: ./gradlew build
 
-      - name: Build web app
-        run: |
-          npm run build
-          mkdir -p dist
+    - name: Run Unit Tests
+      run: ./gradlew test
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '21'
-
-      - name: Accept Android SDK Licenses
-        run: |
-          # Use both common paths for sdkmanager as backup
-          set +e
-          YES="yes"
-          if command -v sdkmanager > /dev/null; then
-            $YES | sdkmanager --licenses
-          fi
-          if [ -n "$ANDROID_SDK_ROOT" ] && [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
-            $YES | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses
-          fi
-          set -e
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.10.2
-          cache-disabled: true
-
-      - name: Fix Gradle Wrapper & Sync
-        run: |
-          cd android
-          # Force regenerate the wrapper to ensure it matches the requested version
-          gradle wrapper --gradle-version 8.10.2 --distribution-type all
-          chmod +x gradlew
-          cd ..
-          npx cap sync android
-
-      - name: Build Android
-        env:
-          GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
-        run: |
-          cd android
-          ./gradlew clean --no-daemon
-          ./gradlew assembleDebug --no-daemon --stacktrace --info
-          ./gradlew bundleDebug --no-daemon --stacktrace --info
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug-aab
-          path: android/app/build/outputs/bundle/debug/app-debug.aab
+    # Opsional: Upload hasil APK jika build berhasil
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-debug
+        path: app/build/outputs/apk/debug/app-debug.apk
