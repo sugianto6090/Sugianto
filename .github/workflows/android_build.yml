@@ -32,27 +32,30 @@ jobs:
           java-version: '21'
 
       - name: Accept Android SDK Licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Pre-clean Wrapper
         run: |
-          rm -f android/gradle/wrapper/gradle-wrapper.jar
-          rm -f android/gradle/wrapper/gradle-wrapper.properties
+          # Use both common paths for sdkmanager as backup
+          set +e
+          YES="yes"
+          if command -v sdkmanager > /dev/null; then
+            $YES | sdkmanager --licenses
+          fi
+          if [ -n "$ANDROID_SDK_ROOT" ] && [ -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            $YES | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses
+          fi
+          set -e
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.10.2
           cache-disabled: true
-          wrapper-validation-enabled: false
 
       - name: Fix Gradle Wrapper & Sync
         run: |
           cd android
-          # Use local gradle to regenerate the wrapper
-          gradle wrapper
+          # Force regenerate the wrapper to ensure it matches the requested version
+          gradle wrapper --gradle-version 8.10.2 --distribution-type all
           chmod +x gradlew
-          ./gradlew --version
           cd ..
           npx cap sync android
 
@@ -61,9 +64,9 @@ jobs:
           GRADLE_OPTS: -Dorg.gradle.jvmargs="-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
         run: |
           cd android
-          ./gradlew clean
-          ./gradlew assembleDebug --stacktrace
-          ./gradlew bundleDebug --stacktrace
+          ./gradlew clean --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace --info
+          ./gradlew bundleDebug --no-daemon --stacktrace --info
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
