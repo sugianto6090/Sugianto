@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Tebak Hewan</string>
-    <string name="title_activity_main">Tebak Hewan</string>
-    <string name="package_name">com.tebakhewan.app</string>
-    <string name="custom_url_scheme">com.tebakhewan.app</string>
+    <string name="app_name">Tetris Anak Cerdas</string>
+    <string name="title_activity_main">Tetris Anak Cerdas</string>
+    <string name="package_name">com.tetrisanakcerdas</string>
+    <string name="custom_url_scheme">com.tetrisanakcerdas</string>
 </resources>

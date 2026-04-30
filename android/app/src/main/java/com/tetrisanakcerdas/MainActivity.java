@@ -1,4 +1,4 @@
-package com.tebakhewan.app;
+package com.tetrisanakcerdas;
 
 import com.getcapacitor.BridgeActivity;
 

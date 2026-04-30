@@ -21,13 +21,13 @@ button {
 
 /* Neubrutalist Shadow Utilities */
 .shadow-brutal-sm {
-  shadow: 4px 4px 0px var(--color-border-dark);
+  box-shadow: 4px 4px 0px var(--color-border-dark);
 }
 
 .shadow-brutal {
-  shadow: 8px 8px 0px var(--color-border-dark);
+  box-shadow: 8px 8px 0px var(--color-border-dark);
 }
 
 .shadow-brutal-lg {
-  shadow: 16px 16px 0px rgba(124, 45, 18, 0.1);
+  box-shadow: 16px 16px 0px rgba(124, 45, 18, 0.1);
 }
