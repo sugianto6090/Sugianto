@@ -44,15 +44,22 @@ jobs:
           fi
           npx cap sync android
 
+      - name: Fix Gradle Wrapper
+        run: |
+          cd android
+          rm -rf gradle/wrapper/gradle-wrapper.jar
+          rm -rf gradle/wrapper/gradle-wrapper.properties
+          gradle wrapper --gradle-version 8.12
+          chmod +x gradlew
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build Android
         run: |
           cd android
-          # Regenerate the wrapper using system gradle to fix "Invalid or corrupt jarfile"
-          gradle wrapper --gradle-version 8.12
-          chmod +x gradlew
+          # Use ./gradlew clean to ensure a fresh build state
+          ./gradlew clean
           ./gradlew assembleDebug
           ./gradlew bundleDebug
 
