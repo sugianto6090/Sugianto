@@ -31,6 +31,9 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
+      - name: Accept Android SDK Licenses
+        run: yes | sdkmanager --licenses || true
+
       - name: Pre-clean Wrapper
         run: |
           rm -f android/gradle/wrapper/gradle-wrapper.jar
