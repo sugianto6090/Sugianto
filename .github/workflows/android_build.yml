@@ -40,11 +40,14 @@ jobs:
         with:
           gradle-version: 8.10.2
           cache-disabled: true
-          add-disable-wrapper-validation: true
+          wrapper-validation-enabled: false
 
       - name: Fix Gradle Wrapper & Sync
         run: |
           cd android
+          # Delete existing wrapper to avoid corruption/validation errors during regeneration
+          rm -f gradle/wrapper/gradle-wrapper.jar
+          rm -f gradle/wrapper/gradle-wrapper.properties
           # Force regenerate the wrapper to ensure it matches the requested version and has correct checksums
           gradle wrapper --gradle-version 8.10.2 --distribution-type all
           chmod +x gradlew
